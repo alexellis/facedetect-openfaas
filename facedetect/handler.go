@@ -37,7 +37,7 @@ func Handle(req []byte) string {
 
 		c := http.Client{}
 		req, _ := http.NewRequest(http.MethodGet, inputURL, nil)
-
+		req.Header.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.113 Safari/537.36")
 		res, resErr := c.Do(req)
 
 		if res.StatusCode != http.StatusOK {
