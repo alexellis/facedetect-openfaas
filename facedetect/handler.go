@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"gocv.io/x/gocv"
@@ -29,17 +30,35 @@ type Response struct {
 
 // Handle a serverless request
 func Handle(req []byte) string {
-
 	var data []byte
 
-	data, err := base64.StdEncoding.DecodeString(string(req))
-	if err != nil {
-		data = req
-	}
+	if val, exists := os.LookupEnv("input_mode"); exists && val == "url" {
+		inputURL := strings.TrimSpace(string(req))
 
-	typ := http.DetectContentType(data)
-	if typ != "image/jpeg" && typ != "image/png" {
-		return "Only jpeg or png images, either raw uncompressed bytes or base64 encoded are acceptable inputs, you uploaded: " + typ
+		c := http.Client{}
+		req, _ := http.NewRequest(http.MethodGet, inputURL, nil)
+
+		res, resErr := c.Do(req)
+
+		if res.StatusCode != http.StatusOK {
+			return fmt.Sprintf("Unable to download image from URI: %s, status: %d", inputURL, res.StatusCode)
+		}
+		defer res.Body.Close()
+		data, _ = ioutil.ReadAll(res.Body)
+
+		if resErr != nil {
+			return fmt.Sprintf("Unable to download image from URI: %s", inputURL)
+		}
+	} else {
+		var decodeErr error
+		data, decodeErr = base64.StdEncoding.DecodeString(string(req))
+		if decodeErr != nil {
+			data = req
+		}
+		typ := http.DetectContentType(data)
+		if typ != "image/jpeg" && typ != "image/png" {
+			return "Only jpeg or png images, either raw uncompressed bytes or base64 encoded are acceptable inputs, you uploaded: " + typ
+		}
 	}
 
 	tmpfile, err := ioutil.TempFile("/tmp", "image")
@@ -56,6 +75,10 @@ func Handle(req []byte) string {
 	query, err := url.ParseQuery(os.Getenv("Http_Query"))
 	if err == nil {
 		output = query.Get("output")
+	}
+
+	if val, exists := os.LookupEnv("output_mode"); exists {
+		output = val
 	}
 
 	faceProcessor := NewFaceProcessor()
